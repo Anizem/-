@@ -1,0 +1,228 @@
+Put your HTML text here<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anizem.Kz - Top Anime</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body { margin:0; font-family:'Poppins',sans-serif; background: linear-gradient(135deg,#0f2027,#203a43,#2c5364); color:#fff; }
+header { text-align:center; padding:40px 20px; font-size:3rem; font-weight:700; letter-spacing:3px;
+background: linear-gradient(90deg,#ff6a00,#ee0979); background-clip:text; color:transparent; -webkit-background-clip:text;
+animation: glow 2s infinite alternate; }
+@keyframes glow { 0% {text-shadow:0 0 10px #ff6a00,0 0 20px #ee0979;} 100% {text-shadow:0 0 20px #ee0979,0 0 30px #ff6a00;} }
+
+#searchBar { width:80%; max-width:500px; margin:20px auto; display:block; padding:10px 15px; font-size:1rem; border-radius:8px; border:none; outline:none; }
+
+/* Carousel Styles */
+.carousel-container { position:relative; width:90%; max-width:1200px; margin:0 auto 40px; overflow:hidden; border-radius:15px; }
+.carousel-track { display:flex; transition:transform 0.5s ease-in-out; }
+.carousel-slide { min-width:100%; position:relative; }
+.carousel-slide img { width:100%; height:400px; object-fit:cover; border-radius:15px; }
+.carousel-slide .carousel-title { position:absolute; bottom:20px; left:20px; font-size:2rem; font-weight:700; color:#fff; text-shadow:2px 2px 6px #000; }
+
+/* Carousel Navigation */
+.carousel-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.5); border:none; color:#fff; font-size:2rem; padding:10px 15px; cursor:pointer; border-radius:50%; transition:background 0.3s ease; }
+.carousel-arrow:hover { background:rgba(0,0,0,0.8); }
+.carousel-arrow.left { left:10px; }
+.carousel-arrow.right { right:10px; }
+
+.carousel-dots { text-align:center; margin-top:10px; }
+.carousel-dot { display:inline-block; width:12px; height:12px; margin:0 5px; background:#555; border-radius:50%; cursor:pointer; transition:background 0.3s ease; }
+.carousel-dot.active { background:#ff69b4; }
+
+/* Anime Grid */
+.anime-container { display:grid; grid-template-columns:repeat(2,1fr); grid-auto-rows:1fr; gap:20px; padding:20px; }
+@media(max-width:900px){ .anime-container{grid-template-columns:1fr;} }
+.anime-card { background:rgba(0,0,0,0.7); border-radius:15px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.7);
+transition:transform 0.3s ease,box-shadow 0.3s ease; }
+.anime-card:hover { transform:translateY(-10px) scale(1.02); box-shadow:0 15px 35px rgba(255,105,180,0.7); }
+.anime-card img { width:100%; height:250px; object-fit:cover; transition:transform 0.5s ease; }
+.anime-card img:hover { transform:scale(1.05); }
+.anime-info { padding:15px 20px; }
+.anime-title { font-size:1.2rem; font-weight:700; color:#ff69b4; margin-bottom:10px; text-shadow:1px 1px 4px #000; }
+.anime-genre { font-size:0.9rem; color:#ccc; margin-bottom:10px; }
+.anime-desc { font-size:0.85rem; color:#ddd; max-height:100px; overflow:hidden; transition:max-height 0.4s ease; }
+.anime-desc.expanded { max-height:300px; }
+.read-more { display:inline-block; margin-top:8px; font-size:0.85rem; color:#ff69b4; cursor:pointer; text-decoration:underline; transition:color 0.3s ease; }
+.read-more:hover { color:#ff1493; }
+
+/* Pagination */
+.pagination { text-align:center; margin:20px; }
+.page-btn { display:inline-block; margin:0 5px; padding:8px 15px; background:#ff69b4; border:none; border-radius:8px; cursor:pointer; font-weight:600; color:#fff; transition:background 0.3s ease; }
+.page-btn:hover { background:#ff1493; }
+.page-btn:disabled { background:#555; cursor:not-allowed; }
+.page-number { background:#444; }
+.page-number.active { background:#ff69b4; }
+</style>
+</head>
+<body>
+
+<header>Anizem.Kz</header>
+<input type="text" id="searchBar" placeholder="Search Anime...">
+
+<!-- Carousel for Top Anime -->
+<div class="carousel-container">
+  <button class="carousel-arrow left" id="prevArrow">&#10094;</button>
+  <div class="carousel-track" id="carouselTrack"></div>
+  <button class="carousel-arrow right" id="nextArrow">&#10095;</button>
+  <div class="carousel-dots" id="carouselDots"></div>
+</div>
+
+<!-- Anime Grid -->
+<div class="anime-container" id="animeList"></div>
+
+<!-- Pagination -->
+<div class="pagination" id="pagination"></div>
+
+<script>
+let currentPage = 1;
+const perPage = 12; // 2x6 layout
+let currentSearch = '';
+const totalPages = 50; // Adjust as needed
+
+const container = document.getElementById('animeList');
+const searchBar = document.getElementById('searchBar');
+const pagination = document.getElementById('pagination');
+
+const carouselTrack = document.getElementById('carouselTrack');
+const prevArrow = document.getElementById('prevArrow');
+const nextArrow = document.getElementById('nextArrow');
+const carouselDots = document.getElementById('carouselDots');
+let carouselIndex = 0;
+let carouselSlides = [];
+
+async function fetchAnime(page=1,search='') {
+  const query = search ? `
+  query($search:String,$page:Int,$perPage:Int){
+    Page(page:$page,perPage:$perPage){
+      media(type:ANIME,search:$search,sort:POPULARITY_DESC){
+        id title {romaji english native} genres description coverImage {large}
+      }
+    }
+  }` : `
+  query($page:Int,$perPage:Int){
+    Page(page:$page,perPage:$perPage){
+      media(type:ANIME,sort:POPULARITY_DESC){
+        id title {romaji english native} genres description coverImage {large}
+      }
+    }
+  }`;
+  
+  const variables={page,perPage};
+  if(search) variables.search=search;
+  
+  const res = await fetch('https://graphql.anilist.co',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query,variables})
+  });
+  
+  const data = await res.json();
+  return data.data.Page.media;
+}
+
+/* Carousel Functions */
+function renderCarousel(topAnime) {
+  carouselTrack.innerHTML='';
+  carouselDots.innerHTML='';
+  carouselSlides = topAnime.map(anime=>{
+    const slide = document.createElement('div');
+    slide.className='carousel-slide';
+    slide.innerHTML = `<img src="${anime.coverImage.large}" alt="${anime.title.romaji}">
+      <div class="carousel-title">${anime.title.english||anime.title.romaji}</div>`;
+    carouselTrack.appendChild(slide);
+    
+    const dot = document.createElement('span');
+    dot.className='carousel-dot';
+    dot.addEventListener('click',()=>{ carouselIndex = topAnime.indexOf(anime); updateCarousel(); });
+    carouselDots.appendChild(dot);
+    return slide;
+  });
+  updateCarousel();
+}
+
+function updateCarousel(){
+  carouselTrack.style.transform = `translateX(-${carouselIndex*100}%)`;
+  const dots = document.querySelectorAll('.carousel-dot');
+  dots.forEach((dot,i)=> dot.classList.toggle('active',i===carouselIndex));
+}
+
+prevArrow.addEventListener('click',()=>{ carouselIndex = (carouselIndex-1+carouselSlides.length)%carouselSlides.length; updateCarousel(); });
+nextArrow.addEventListener('click',()=>{ carouselIndex = (carouselIndex+1)%carouselSlides.length; updateCarousel(); });
+
+// Auto slide every 5s
+setInterval(()=>{ carouselIndex = (carouselIndex+1)%carouselSlides.length; updateCarousel(); },5000);
+
+/* Anime Grid & Pagination */
+function renderAnime(animeList){
+  container.innerHTML='';
+  animeList.forEach(anime=>{
+    const card=document.createElement('div');
+    card.className='anime-card';
+    const descText = anime.description ? anime.description.replace(/<\/?[^>]+(>|$)/g,"") : "No description available.";
+    card.innerHTML = `
+      <img src="${anime.coverImage.large}" alt="${anime.title.romaji}">
+      <div class="anime-info">
+        <div class="anime-title">${anime.title.english||anime.title.romaji}</div>
+        <div class="anime-genre">${anime.genres.join(', ')}</div>
+        <div class="anime-desc">${descText.slice(0,200)}...</div>
+        <span class="read-more">Read More</span>
+      </div>
+    `;
+    container.appendChild(card);
+    const readMoreBtn = card.querySelector('.read-more');
+    const desc = card.querySelector('.anime-desc');
+    readMoreBtn.addEventListener('click',()=> {
+      desc.classList.toggle('expanded');
+      readMoreBtn.textContent = desc.classList.contains('expanded') ? 'Read Less':'Read More';
+    });
+  });
+  renderPagination();
+}
+
+function renderPagination() {
+  pagination.innerHTML='';
+  const prevBtn = document.createElement('button');
+  prevBtn.className='page-btn';
+  prevBtn.textContent='Previous';
+  prevBtn.disabled=currentPage===1;
+  prevBtn.addEventListener('click',()=>{ currentPage--; loadAnime(); });
+  pagination.appendChild(prevBtn);
+  
+  for(let i=Math.max(1,currentPage-2); i<=Math.min(totalPages,currentPage+2); i++){
+    const pageBtn=document.createElement('button');
+    pageBtn.className='page-btn page-number'+(i===currentPage?' active':'');
+    pageBtn.textContent=i;
+    pageBtn.addEventListener('click',()=>{ currentPage=i; loadAnime(); });
+    pagination.appendChild(pageBtn);
+  }
+  
+  const nextBtn=document.createElement('button');
+  nextBtn.className='page-btn';
+  nextBtn.textContent='Next';
+  nextBtn.disabled=currentPage===totalPages;
+  nextBtn.addEventListener('click',()=>{ currentPage++; loadAnime(); });
+  pagination.appendChild(nextBtn);
+}
+
+async function loadAnime() {
+  const topAnime = await fetchAnime(1,'');
+  renderCarousel(topAnime.slice(0,5));
+  const animeList = await fetchAnime(currentPage,currentSearch);
+  renderAnime(animeList);
+}
+
+// Initial Load
+loadAnime();
+
+// Live Search
+searchBar.addEventListener('input',()=>{
+  currentSearch = searchBar.value.trim();
+  currentPage = 1;
+  loadAnime();
+});
+</script>
+
+</body>
+</html>
